@@ -1,4 +1,5 @@
 import asyncio
+import random
 from tcputils import *
 
 
@@ -33,10 +34,24 @@ class Servidor:
 
         if (flags & FLAGS_SYN) == FLAGS_SYN:
             # A flag SYN estar setada significa que é um cliente tentando estabelecer uma conexão nova
-            # TODO: talvez você precise passar mais coisas para o construtor de conexão
-            conexao = self.conexoes[id_conexao] = Conexao(self, id_conexao)
-            # TODO: você precisa fazer o handshake aceitando a conexão. Escolha se você acha melhor
-            # fazer aqui mesmo ou dentro da classe Conexao.
+            '''
+            1-  O cliente envia um segmento contendo um valor sequencial inicial com o flag Syn activo.
+                Esse segmento serve como uma solicitação ao servidor para começar uma sessão.
+            2-  O Servidor responde com um segmento contendo um valor de confirmação igual ao valor sequencial mais 1 
+                (Ack=Seq100 + 1 = 101 , mais seu próprio valor sequencial de sincronização  Seq=300 , com o flag[Syn,Ack] . 
+                O Ack é sempre o próximo Byte ou Octeto esperado.
+            3-  O Cliente responde com um valor de confirmação igual ao valor sequencial  
+                que ele recebeu mais um,[flag Ack=Seq300 + 1 = 301]. Isso completa o processo de estabelecimento de conexão.
+                https://bloghandsonlabs.wordpress.com/2017/02/19/conexao-tcp-hand-shake-triplo/
+            '''
+            seq_servidor = random.randint(1024, 0xffff)
+            ack_servidor = seq_no + 1
+            segmento = fix_checksum(make_header(dst_port, src_port, seq_servidor, ack_servidor, (FLAGS_SYN|FLAGS_ACK)), src_addr, dst_addr) 
+            # quando servidor vai mandar resposta (segmento) as portas dst e src invertem (o q recebia agora manda e vice-versa)
+            ack_cliente = seq_servidor + 1
+            conexao = self.conexoes[id_conexao] = Conexao(self, id_conexao, ack_cliente, ack_servidor)
+            conexao.servidor.rede.enviar(segmento, src_addr)
+            
             if self.callback:
                 self.callback(conexao)
         elif id_conexao in self.conexoes:
@@ -48,13 +63,18 @@ class Servidor:
 
 
 class Conexao:
-    def __init__(self, servidor, id_conexao):
+    def __init__(self, servidor, id_conexao, ack_enviado, seq_esperado):
         self.servidor = servidor
         self.id_conexao = id_conexao
         self.callback = None
         self.timer = asyncio.get_event_loop().call_later(1, self._exemplo_timer)  # um timer pode ser criado assim; esta linha é só um exemplo e pode ser removida
         #self.timer.cancel()   # é possível cancelar o timer chamando esse método; esta linha é só um exemplo e pode ser removida
+        self.ack_enviado = ack_enviado
+        self.seq_esperado = seq_esperado
 
+    def getSeq(self):
+        return self.seq_init
+    
     def _exemplo_timer(self):
         # Esta função é só um exemplo e pode ser removida
         print('Este é um exemplo de como fazer um timer')
