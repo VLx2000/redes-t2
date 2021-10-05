@@ -45,11 +45,11 @@ class Servidor:
                 https://bloghandsonlabs.wordpress.com/2017/02/19/conexao-tcp-hand-shake-triplo/
             '''
             seq_servidor = random.randint(1024, 0xffff)
-            ack_servidor = seq_no + 1
-            segmento = fix_checksum(make_header(dst_port, src_port, seq_servidor, ack_servidor, (FLAGS_SYN|FLAGS_ACK)), src_addr, dst_addr) 
+            seq_esperado = seq_no + 1
+            segmento = fix_checksum(make_header(dst_port, src_port, seq_servidor, seq_esperado, (FLAGS_SYN|FLAGS_ACK)), src_addr, dst_addr) 
             # quando servidor vai mandar resposta (segmento) as portas dst e src invertem (o q recebia agora manda e vice-versa)
-            ack_cliente = seq_servidor + 1
-            conexao = self.conexoes[id_conexao] = Conexao(self, id_conexao, ack_cliente, ack_servidor)
+            ack_enviado = seq_servidor + 1
+            conexao = self.conexoes[id_conexao] = Conexao(self, id_conexao, ack_enviado, seq_esperado)
             conexao.servidor.rede.enviar(segmento, src_addr)
             
             if self.callback:
@@ -72,9 +72,6 @@ class Conexao:
         self.ack_enviado = ack_enviado
         self.seq_esperado = seq_esperado
 
-    def getSeq(self):
-        return self.seq_init
-    
     def _exemplo_timer(self):
         # Esta função é só um exemplo e pode ser removida
         print('Este é um exemplo de como fazer um timer')
@@ -83,7 +80,14 @@ class Conexao:
         # TODO: trate aqui o recebimento de segmentos provenientes da camada de rede.
         # Chame self.callback(self, dados) para passar dados para a camada de aplicação após
         # garantir que eles não sejam duplicados e que tenham sido recebidos em ordem.
-        print('recebido payload: %r' % payload)
+        if seq_no == self.seq_esperado and len(payload) > 0:
+            (src_addr, src_port, dst_addr, dst_port) = self.id_conexao
+
+            print('recebido payload: %r' % payload)
+            self.callback(self, payload)
+            segmento = fix_checksum(make_header(dst_port, src_port, self.ack_enviado, self.seq_esperado, (FLAGS_ACK)), src_addr, dst_addr) 
+            self.servidor.rede.enviar(segmento, src_addr)
+            self.seq_esperado += len(payload)
 
     # Os métodos abaixo fazem parte da API
 
