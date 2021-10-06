@@ -108,15 +108,28 @@ class Conexao:
         # Chame self.servidor.rede.enviar(segmento, dest_addr) para enviar o segmento
         # que você construir para a camada de rede.
         (src_addr, src_port, dst_addr, dst_port) = self.id_conexao
-        segmento = fix_checksum(make_header(dst_port, src_port, self.ack_enviado, self.seq_esperado, (FLAGS_ACK)) + dados, src_addr, dst_addr)
-        self.ack_enviado += len(dados[4*(FLAGS_ACK>>12):])
-        self.servidor.rede.enviar(segmento, dst_addr)
-        pass
 
-    '''para testar coloquei esses prints antes da linha 78
-        print("seg", segmento[4*(flags>>12):])
-        print("pay", payload[j*MSS:(j+1)*MSS])
-    '''
+        pacote = len(dados)
+        lst = []
+        ini = 4*(FLAGS_ACK>>12)
+        cont = 0
+        
+        if pacote > MSS:
+            while pacote > MSS:
+                cont += 1
+                pacote -= MSS
+                lst.append(dados[ini:MSS * cont])
+                ini = MSS * cont
+            
+            lst.append(dados[ini:len(dados)])
+        else:
+            lst.append(dados[4*(FLAGS_ACK>>12):])
+        
+        for pkg in lst:
+            segmento = fix_checksum(make_header(src_port, dst_port, self.ack_enviado, self.seq_esperado, (FLAGS_ACK)) + pkg, src_addr, dst_addr)
+            self.ack_enviado += len(pkg)
+            self.servidor.rede.enviar(segmento, dst_addr)
+            
     def fechar(self):
         """
         Usado pela camada de aplicação para fechar a conexão
