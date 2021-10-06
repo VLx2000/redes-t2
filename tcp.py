@@ -85,9 +85,12 @@ class Conexao:
 
             print('recebido payload: %r' % payload)
             self.callback(self, payload)
-            segmento = fix_checksum(make_header(dst_port, src_port, self.ack_enviado, self.seq_esperado, (FLAGS_ACK)), src_addr, dst_addr) 
-            self.servidor.rede.enviar(segmento, src_addr)
             self.seq_esperado += len(payload)
+            segmento = fix_checksum(make_header(src_port, dst_port, self.ack_enviado, self.seq_esperado, (FLAGS_ACK)), src_addr, dst_addr) 
+            self.servidor.rede.enviar(segmento, dst_addr)
+        else:
+            self.callback(self, b"")
+
 
     # Os métodos abaixo fazem parte da API
 
