@@ -77,7 +77,6 @@ class Conexao:
         print('Este é um exemplo de como fazer um timer')
 
     def _rdt_rcv(self, seq_no, ack_no, flags, payload):
-        # TODO: trate aqui o recebimento de segmentos provenientes da camada de rede.
         # Chame self.callback(self, dados) para passar dados para a camada de aplicação após
         # garantir que eles não sejam duplicados e que tenham sido recebidos em ordem.
         if seq_no == self.seq_esperado and len(payload) > 0:
@@ -108,8 +107,16 @@ class Conexao:
         # TODO: implemente aqui o envio de dados.
         # Chame self.servidor.rede.enviar(segmento, dest_addr) para enviar o segmento
         # que você construir para a camada de rede.
+        (src_addr, src_port, dst_addr, dst_port) = self.id_conexao
+        segmento = fix_checksum(make_header(dst_port, src_port, self.ack_enviado, self.seq_esperado, (FLAGS_ACK)) + dados, src_addr, dst_addr)
+        self.ack_enviado += len(dados[4*(FLAGS_ACK>>12):])
+        self.servidor.rede.enviar(segmento, dst_addr)
         pass
 
+    '''para testar coloquei esses prints antes da linha 78
+        print("seg", segmento[4*(flags>>12):])
+        print("pay", payload[j*MSS:(j+1)*MSS])
+    '''
     def fechar(self):
         """
         Usado pela camada de aplicação para fechar a conexão
